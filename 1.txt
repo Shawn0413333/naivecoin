@@ -1,0 +1,108 @@
+// 假设已经包含了naivecoin的必要头文件和命名空间
+#include "naivecoin.h" // 伪代码，表示包含了naivecoin的所有必要定义
+#include <openssl/evp.h> // OpenSSL库用于加密和签名
+#include <unordered_map> // 用于存储学生信息
+ 
+// 学生信息结构体
+struct Student {
+    std::string studentId;
+    std::string publicKey; // 存储在区块链上的公钥
+    // 私有字段，如私钥（在实际应用中应安全存储）
+};
+ 
+// 全局学生信息映射（在实际应用中应使用更安全的存储方式）
+std::unordered_map<std::string, Student> students;
+ 
+// 生成公私钥对（简化示例，未处理错误）
+void generateKeyPair(EVP_PKEY **pkey) {
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
+    EVP_PKEY_keygen_init(pctx);
+    EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, 2048);
+    EVP_PKEY_keygen(pctx, pkey);
+    EVP_PKEY_CTX_free(pctx);
+}
+
+// 学生注册到区块链（伪代码）
+void registerStudent(const std::string &studentId, EVP_PKEY *pkey) {
+    // 提取公钥
+    EVP_PKEY_get_rsa(pkey); // 假设pkey是RSA密钥，实际应检查类型并正确处理
+    RSA *rsa = EVP_PKEY_get1_RSA(pkey);
+    BIO *bp_public = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPublicKey(bp_public, rsa);
+    std::string publicKey((char *)BIO_get_mem_ptr(bp_public, NULL) + BIO_get_mem_data(bp_public), BIO_pending(bp_public));
+    BIO_free_all(bp_public);
+    RSA_free(rsa);
+ 
+    // 创建并发送学生注册交易到区块链（伪代码）
+    Student student = {studentId, publicKey};
+    students[studentId] = student; // 在内存中存储学生信息（仅用于示例）
+    // ... 创建交易并发送到区块链网络 ...
+}
+
+// 学生签到并生成考勤记录交易（伪代码）
+void recordAttendance(const std::string &studentId, const std::string &event, long timestamp) {
+    // 从学生信息映射中获取公钥（在实际应用中应使用更安全的方式）
+    Student student = students[studentId];
+    EVP_PKEY *pkey = /* ... 重新加载或获取学生的私钥以进行签名 ... */;
+ 
+    // 创建考勤证书并签名（简化示例）
+    std::string dataToSign = studentId + "," + event + "," + std::to_string(timestamp);
+    unsigned char *signature = NULL;
+    unsigned int sig_len;
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    EVP_SignInit(mdctx, EVP_sha256());
+    EVP_SignUpdate(mdctx, dataToSign.c_str(), dataToSign.size());
+    EVP_SignFinal(mdctx, NULL, &sig_len, pkey);
+    signature = (unsigned char *)OPENSSL_malloc(sig_len);
+    EVP_SignFinal(mdctx, signature, &sig_len, pkey);
+    EVP_MD_CTX_free(mdctx);
+ 
+    // 创建并发送考勤记录交易到区块链（伪代码）
+    // ... 包含学生ID、事件、时间戳和签名 ...
+    // ... 创建交易并发送到区块链网络 ...
+ 
+    // 释放签名内存
+    OPENSSL_free(signature);
+}
+
+// 矿工验证考勤记录交易（伪代码）
+bool verifyAttendanceSignature(const std::string &studentId, const std::string &data, const unsigned char *signature, unsigned int sig_len) {
+    // 从学生信息映射中获取公钥
+    Student student = students[studentId];
+    EVP_PKEY *pkey = /* ... 重新加载或获取学生的公钥以进行验证 ... */;
+ 
+    // 验证签名
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    EVP_VerifyInit(mdctx, EVP_sha256());
+    EVP_VerifyUpdate(mdctx, data.c_str(), data.size());
+    int verify_result = EVP_VerifyFinal(mdctx, signature, sig_len, pkey);
+    EVP_MD_CTX_free(mdctx);
+ 
+    return verify_result == 1;
+}
+
+// 查询考勤记录（伪代码）
+// ... 根据学生ID、时间段或班级查询考勤记录的实现 ...
+ 
+int main() {
+    // 初始化OpenSSL库等必要设置
+    OpenSSL_add_all_algorithms();
+    ERR_load_crypto_strings();
+ 
+    // 示例：生成一个学生的公私钥对并注册到区块链
+    EVP_PKEY *pkey = NULL;
+    generateKeyPair(&pkey);
+    registerStudent("123456", pkey);
+    EVP_PKEY_free(pkey); // 释放密钥（在实际应用中应更谨慎地管理密钥的生命周期）
+ 
+    // 示例：学生签到并记录到区块链
+    recordAttendance("123456", "MathClass", time(NULL));
+ 
+    // ... 其他操作和测试 ...
+ 
+    // 清理OpenSSL库等必要资源
+    EVP_cleanup();
+    ERR_free_strings();
+ 
+    return 0;
+}
